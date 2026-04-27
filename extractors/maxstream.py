@@ -259,6 +259,12 @@ class MaxstreamExtractor:
                         if isinstance(result, dict):
                             self.cookies.update(result.get("cookies", {}))
                             html = result.get("html", "")
+                            
+                            # Check if FlareSolverr returned a browser error page (Chromium Authors style)
+                            if "Chromium Authors" in html or "id=\"main-frame-error\"" in html:
+                                logger.warning(f"FlareSolverr returned a browser error page on this path, trying next...")
+                                html = ""
+
                             if html: return html
                             
                         logger.warning(f"FlareSolverr failed for {url} on this path, trying next path...")
@@ -356,20 +362,23 @@ class MaxstreamExtractor:
             field_name = captcha_input["name"]
             
         post_data = {field_name: res}
-        # Add other hidden fields
+        # Add ALL other form elements (hidden, buttons, etc)
         if form:
-            for hidden in form.find_all("input", type="hidden"):
-                if hidden.get("name"):
-                    post_data[hidden["name"]] = hidden.get("value", "")
+            for inp in form.find_all(["input", "button", "select"]):
+                name = inp.get("name")
+                value = inp.get("value", "")
+                if name and name not in post_data:
+                    post_data[name] = value
         else:
-            # Regex for hidden fields
-            for m in re.finditer(r'<input[^>]+type=["\']hidden["\'][^>]+name=["\']([^"\']+)["\'][^>]+value=["\']([^"\']*)["\']', text):
-                post_data[m.group(1)] = m.group(2)
+            # Regex fallback for hidden fields
+            for m in re.finditer(r'<input[^>]+name=["\']([^"\']+)["\'][^>]+value=["\']([^"\']*)["\']', text):
+                if m.group(1) not in post_data:
+                    post_data[m.group(1)] = m.group(2)
         
         logger.debug(f"Submitting captcha to: {form_action} with data: {post_data}")
         headers = {**self.base_headers, "referer": original_url}
-        # Use urlencode for FlareSolverr compatibility and pass cookies
-        solved_text = await self._smart_request(form_action, method="POST", data=urlencode(post_data), headers=headers)
+        # Use urlencode for FlareSolverr and add a wait time to allow page transition
+        solved_text = await self._smart_request(form_action, method="POST", data=urlencode(post_data), headers=headers, wait=3000)
         
         # Try to parse the new page
         try:

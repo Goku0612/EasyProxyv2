@@ -141,6 +141,11 @@ async def smart_request(
         payload["headers"] = fs_request_headers
     if fs_cookies: payload["cookies"] = fs_cookies
     if post_data: payload["postData"] = post_data
+    
+    # Add wait parameter if specified in kwargs
+    wait_time = kwargs.get("wait", 0)
+    if wait_time > 0:
+        payload["wait"] = wait_time
     if proxy:
         payload["proxy"] = {"url": proxy}
         headers_for_fs = {"X-Proxy-Server": get_solver_proxy_url(proxy)}
