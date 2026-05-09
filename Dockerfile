@@ -10,15 +10,17 @@ ENV ENABLE_WARP=true
 ENV WARP_MODE=wireproxy
 ENV ENABLE_FLARESOLVER=false
 
-# --- AGGIUNGI LA TUA PASSWORD QUI ---
-# Sostituisci 'LaTuaPassword' con quella che scriverai nell'app Vavoo
+# --- PASSWORD DEL PROXY ---
+# Questa è la password che dovrai inserire nell'app Vavoo/Stremio
 ENV PROXY_PASSWORD=Dosm3nico6
 
-# --- QUESTE RIGHE SONO FONDAMENTALI PER IL TUO FORK ---
+# --- CONFIGURAZIONE AMBIENTE ---
 WORKDIR /app
 COPY . .
 RUN chmod +x entrypoint.sh
 
+# Porta esposta per Hugging Face
 EXPOSE 7860
 
+# Comando di avvio del servizio
 CMD ["/bin/bash", "/app/entrypoint.sh"]
