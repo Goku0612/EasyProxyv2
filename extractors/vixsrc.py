@@ -84,10 +84,6 @@ class VixSrcExtractor:
 
         logger.info("curl_cffi direct status=%s len=%s for %s", resp.status_code, len(content) if content else 0, url)
 
-        if resp.status_code == 403:
-            logger.info("curl_cffi 403, trying shared browser for %s", url)
-            return await self._make_browser_request(url)
-
         class MockResponse:
             def __init__(self, text_content, status, response_url):
                 self._text = text_content
@@ -105,75 +101,6 @@ class VixSrcExtractor:
                     raise ExtractorError(f"curl_cffi HTTP error {self.status} for {self.url}")
 
         return MockResponse(content, resp.status_code, url)
-
-    async def _make_browser_request(self, url: str):
-        """Fetch embed HTML through the shared Chromium context."""
-        from extractors.shared_browser import get_shared_browser_context
-
-        user_agent = self._default_headers()["user-agent"]
-        _, _, context = await get_shared_browser_context(user_agent)
-        page = await context.new_page()
-        try:
-            response = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            try:
-                await page.wait_for_function("() => window.masterPlaylist || document.body.innerText.includes('token')", timeout=15000)
-            except Exception:
-                await page.wait_for_timeout(3000)
-
-            status = response.status if response else 200
-            browser_data = await page.evaluate(
-                """() => ({
-                    html: document.documentElement.outerHTML,
-                    title: document.title,
-                    masterPlaylist: window.masterPlaylist || null,
-                    canPlayFHD: window.canPlayFHD === true
-                })"""
-            )
-            content = browser_data.get("html") or ""
-            master_playlist = browser_data.get("masterPlaylist")
-            if master_playlist:
-                params = master_playlist.get("params") or {}
-                playlist_url = master_playlist.get("url") or ""
-                synthetic_script = (
-                    "<script>window.masterPlaylist = {"
-                    f"params: {{'token': '{params.get('token', '')}', 'expires': '{params.get('expires', '')}', 'asn': '{params.get('asn', '')}'}}, "
-                    f"url: '{playlist_url}'"
-                    "};"
-                    f"window.canPlayFHD = {'true' if browser_data.get('canPlayFHD') else 'false'};"
-                    "</script>"
-                )
-                content += synthetic_script
-            logger.info(
-                "shared browser status=%s len=%s title=%s master=%s for %s",
-                status,
-                len(content) if content else 0,
-                browser_data.get("title"),
-                bool(master_playlist),
-                url,
-            )
-        finally:
-            try:
-                await page.close()
-            except Exception:
-                pass
-
-        class MockResponse:
-            def __init__(self, text_content, status, response_url):
-                self._text = text_content
-                self.status = status
-                self.status_code = status
-                self.text = text_content
-                self.url = response_url
-                self.headers = {}
-
-            async def text_async(self):
-                return self._text
-
-            def raise_for_status(self):
-                if self.status >= 400:
-                    raise ExtractorError(f"Browser HTTP error {self.status} for {self.url}")
-
-        return MockResponse(content, status, url)
 
     @staticmethod
     def _normalize_base_site(url: str) -> str:
