@@ -137,23 +137,15 @@ def get_proxy_for_url(url: str, transport_routes: list, global_proxies: list, by
     if bypass_warp is None:
         bypass_warp = BYPASS_WARP_CONTEXT.get()
     if not url:
-        if bypass_warp:
-            return None
         proxy = random.choice(global_proxies) if global_proxies else None
         return proxy if is_proxy_alive(proxy) else None
-
-    # `bypass_warp` means "force real IP / direct connection" for the whole flow.
-    # Do this before TRANSPORT_ROUTES so host-specific routes cannot silently
-    # reintroduce WARP or another proxy when the caller explicitly asked to bypass.
-    if bypass_warp:
-        return None
 
     normalized_url = url.lower()
 
     if transport_routes:
         for route in transport_routes:
-            url_pattern = route["url"]
-            if url_pattern in url:
+            url_pattern = route["url"].lower()
+            if url_pattern in normalized_url:
                 proxy_value = route.get("proxy")
                 if not proxy_value:
                     return None
@@ -165,12 +157,7 @@ def get_proxy_for_url(url: str, transport_routes: list, global_proxies: list, by
     if ENABLE_WARP and not bypass_warp and not is_excluded:
         return WARP_PROXY_URL if is_proxy_alive(WARP_PROXY_URL) else None
 
-    # Fallback to Global Proxies
-    # Se bypass_warp è True, preferiamo la connessione DIRETTA (Real IP) per coerenza
-    # invece di pescare un proxy a caso dalla lista globale, che causerebbe rotazione IP.
-    if bypass_warp:
-        return None
-
+    # Fallback to Global Proxies. warp=off disables only WARP, not configured proxies.
     # Use sticky proxy if already selected for this request context
     proxy = SELECTED_PROXY_CONTEXT.get()
     if proxy:

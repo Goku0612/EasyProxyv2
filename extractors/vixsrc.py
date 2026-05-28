@@ -39,6 +39,12 @@ class VixSrcExtractor:
         self._fs_cookies = None
         self._fs_user_agent = None
         self._fs_proxy = None
+        logger.info(
+            "VixSrc proxy config: transport_routes=%d extractor_proxies=%d resolved_vixsrc=%s",
+            len(TRANSPORT_ROUTES),
+            len(self.proxies or []),
+            get_proxy_for_url("https://vixsrc.to/", TRANSPORT_ROUTES, self.proxies or []),
+        )
     @staticmethod
     def _normalize_proxy_url(proxy_value: str) -> str:
         proxy_value = proxy_value.strip()
@@ -164,6 +170,13 @@ class VixSrcExtractor:
 
         proxies_to_try = []
         route_proxy = get_proxy_for_url(url, TRANSPORT_ROUTES, self.proxies)
+        logger.info(
+            "VixSrc curl proxy lookup: url=%s transport_routes=%d extractor_proxies=%d route_proxy=%s",
+            url,
+            len(TRANSPORT_ROUTES),
+            len(self.proxies or []),
+            route_proxy,
+        )
         if route_proxy:
             proxies_to_try.append(route_proxy)
         for proxy in self.proxies or []:
