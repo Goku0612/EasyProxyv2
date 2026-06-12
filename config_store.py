@@ -5,7 +5,7 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_DIR = os.environ.get("CONFIG_DIR", "/app/data")
+_CONFIG_DIR = os.environ.get("CONFIG_DIR", "app/data")
 _CONFIG_FILE = os.path.join(_CONFIG_DIR, "config.json")
 
 DEFAULT_CONFIG = {
@@ -31,7 +31,7 @@ DEFAULT_CONFIG = {
     "extractor_proxies": {},
     "warp_off_extractors": [],
     "mpd_mode": "legacy",
-    "recordings_dir": "/app/data/recordings", 
+    "recordings_dir": "app/data/recordings", 
     "max_recording_duration": 28800,
     "recordings_retention_days": 7,
     "flaresolverr_url": "http://localhost:8191",
