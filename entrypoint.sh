@@ -7,7 +7,7 @@ export DATA_DIR="data"
 mkdir -p data
 
 # Configura una cartella temporanea assoluta e accessibile per WARP
-export WARP_DIR="/tmp/easyproxy-warp"
+export WARP_DIR="data/easyproxy-warp"
 mkdir -p "$WARP_DIR"
 cd "$WARP_DIR" || return 1
 
@@ -26,8 +26,6 @@ start_wireproxy_warp() {
     fi
 
     WARP_DIR="${WARP_DIR:-/tmp/easyproxy-warp}"
-    mkdir -p "$WARP_DIR"
-    cd "$WARP_DIR" || return 1
 
     if [ ! -f wgcf-account.toml ]; then
         yes | wgcf register --accept-tos || return 1
