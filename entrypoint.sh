@@ -1,6 +1,11 @@
 #!/bin/bash
 export PYTHONPATH=/app
 
+# Forza le variabili di configurazione a usare la cartella locale di Render
+export CONFIG_DIR="/app/data"
+export DATA_DIR="/app/data"
+mkdir -p /app/data
+
 WARP_EXCLUDED_HOSTS="${WARP_EXCLUDED_HOSTS:-cinemacity.cc,*.cinemacity.cc,cccdn.net,*.cccdn.net,strem.fun,*.strem.fun,torrentio.strem.fun,real-debrid.com,*.real-debrid.com,realdebrid.com,*.realdebrid.com,api.real-debrid.com,premiumize.me,*.premiumize.me,www.premiumize.me,alldebrid.com,*.alldebrid.com,api.alldebrid.com,debrid-link.com,*.debrid-link.com,debridlink.com,*.debridlink.com,api.debrid-link.com,torbox.app,*.torbox.app,api.torbox.app,offcloud.com,*.offcloud.com,api.offcloud.com,put.io,*.put.io,api.put.io}"
 WARP_LICENSE_KEY="${WARP_LICENSE_KEY:-}"
 WARP_MODE="${WARP_MODE:-wireproxy}"
