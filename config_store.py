@@ -9,7 +9,7 @@ _CONFIG_DIR = os.environ.get("CONFIG_DIR", "app/data")
 _CONFIG_FILE = os.path.join(_CONFIG_DIR, "config.json")
 
 DEFAULT_CONFIG = {
-    "enable_warp": False,
+    "enable_warp": True,
     "warp_license_key": "",
     "warp_exclude_domains": [
         "strem.fun", "*.strem.fun", "torrentio.strem.fun",
