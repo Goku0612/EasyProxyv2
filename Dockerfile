@@ -88,8 +88,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copia esplicita
 COPY . .
 
-# Crea la cartella /data con i permessi totali per evitare il PermissionError su Render
-RUN mkdir -p /data && chmod 777 /data
+# Crea la cartella dati dentro /app e crea un collegamento simbolico a /data per bypassare i blocchi di Render
+RUN mkdir -p /app/data && ln -s /app/data /data
 
 RUN chmod +x entrypoint.sh
 
