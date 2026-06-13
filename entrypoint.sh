@@ -6,8 +6,8 @@ export CONFIG_DIR="data"
 export DATA_DIR="data"
 mkdir -p data
 
-# Configura una cartella temporanea assoluta e accessibile per WARP
-export WARP_DIR="data/easyproxy-warp"
+# Definiamo la directory di WARP in modo assoluto dentro data
+export WARP_DIR="/opt/render/project/src/data/easyproxy-warp"
 mkdir -p "$WARP_DIR"
 cd "$WARP_DIR" || return 1
 
