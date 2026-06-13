@@ -443,6 +443,7 @@ class HLSProxyCoreMixin:
 
         # Fallback: wireproxy mode — kill, re-register, restart
         warp_dir = os.environ.get("WARP_DIR", "/tmp/easyproxy-warp")
+
         _kill_wireproxy()
         await asyncio.sleep(1)
 
