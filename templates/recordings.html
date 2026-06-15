@@ -279,6 +279,22 @@
             border-color: var(--border-accent);
         }
 
+        .progress-bar-container {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            height: 6px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--primary-gradient);
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
         .stat-value {
             font-size: 1.75rem;
             font-weight: 800;
@@ -750,6 +766,38 @@
             </div>
         </div>
 
+        <div class="stats-grid fade-in" style="margin-top: 1rem;">
+            <div class="stat-card" style="text-align: left; display: flex; flex-direction: column; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <div class="stat-label" style="margin-top: 0;">CPU Usage</div>
+                    <div class="stat-value" id="cpuPercent" style="font-size: 1.25rem;">0%</div>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="cpuBar"></div>
+                </div>
+            </div>
+            <div class="stat-card" style="text-align: left; display: flex; flex-direction: column; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <div class="stat-label" style="margin-top: 0;">RAM Usage</div>
+                    <div class="stat-value" id="ramPercent" style="font-size: 1.25rem;">0%</div>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="ramBar"></div>
+                </div>
+                <div class="stat-label" id="ramDetails" style="font-size: 0.65rem; margin-top: 4px; text-transform: none; text-align: right; width: 100%;">0 / 0</div>
+            </div>
+            <div class="stat-card" style="text-align: left; display: flex; flex-direction: column; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <div class="stat-label" style="margin-top: 0;">Disk Space (DVR)</div>
+                    <div class="stat-value" id="diskPercent" style="font-size: 1.25rem;">0%</div>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="diskBar"></div>
+                </div>
+                <div class="stat-label" id="diskDetails" style="font-size: 0.65rem; margin-top: 4px; text-transform: none; text-align: right; width: 100%;">0 / 0 (Free: 0)</div>
+            </div>
+        </div>
+
         <div class="card fade-in">
             <div class="card-header">
                 <h2 class="card-title">Start New Recording</h2>
@@ -916,6 +964,22 @@
                 document.getElementById('completedCount').textContent = completed;
                 document.getElementById('failedCount').textContent = failed;
                 document.getElementById('totalSize').textContent = formatBytes(totalSize);
+
+                // Update system stats if present in response
+                if (data.system_stats) {
+                    const stats = data.system_stats;
+                    
+                    document.getElementById('cpuPercent').textContent = stats.cpu.percent + '%';
+                    document.getElementById('cpuBar').style.width = stats.cpu.percent + '%';
+                    
+                    document.getElementById('ramPercent').textContent = stats.ram.percent + '%';
+                    document.getElementById('ramBar').style.width = stats.ram.percent + '%';
+                    document.getElementById('ramDetails').textContent = `${formatBytes(stats.ram.used)} / ${formatBytes(stats.ram.total)}`;
+                    
+                    document.getElementById('diskPercent').textContent = stats.disk.percent + '%';
+                    document.getElementById('diskBar').style.width = stats.disk.percent + '%';
+                    document.getElementById('diskDetails').textContent = `${formatBytes(stats.disk.used)} / ${formatBytes(stats.disk.total)} (Free: ${formatBytes(stats.disk.free)})`;
+                }
 
                 if (recordings.length === 0) {
                     listEl.innerHTML = `

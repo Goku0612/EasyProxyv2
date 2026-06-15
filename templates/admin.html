@@ -124,6 +124,61 @@
             background: var(--surface-elevated);
         }
         .card:hover::after { transform: scaleX(1); }
+        .progress-bar-container {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            height: 6px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: var(--primary-gradient);
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+        .resource-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            margin-top: 0.5rem;
+        }
+        .resource-item {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.02);
+            padding: 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-primary);
+        }
+        .resource-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        .resource-name {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .resource-val {
+            font-size: 1.25rem;
+            font-weight: 800;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .resource-details {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+            text-align: right;
+        }
         .card h2 {
             font-size: 1rem; font-weight: 700; margin-bottom: 1.25rem;
             display: flex; align-items: center; gap: 8px;
@@ -315,6 +370,42 @@
     <div id="toast" class="toast"></div>
 
     <div class="grid-2">
+        <!-- System resources -->
+        <div class="card card-wide">
+            <h2><span class="icon">📊</span> System Resources</h2>
+            <div class="resource-grid">
+                <div class="resource-item">
+                    <div class="resource-header">
+                        <div class="resource-name">CPU Usage</div>
+                        <div class="resource-val" id="cpu-percent">0%</div>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="cpu-bar"></div>
+                    </div>
+                </div>
+                <div class="resource-item">
+                    <div class="resource-header">
+                        <div class="resource-name">RAM Usage</div>
+                        <div class="resource-val" id="ram-percent">0%</div>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="ram-bar"></div>
+                    </div>
+                    <div class="resource-details" id="ram-details">0 / 0</div>
+                </div>
+                <div class="resource-item">
+                    <div class="resource-header">
+                        <div class="resource-name">Disk Space (DVR)</div>
+                        <div class="resource-val" id="disk-percent">0%</div>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="disk-bar"></div>
+                    </div>
+                    <div class="resource-details" id="disk-details">0 / 0 (Free: 0)</div>
+                </div>
+            </div>
+        </div>
+
         <!-- WARP -->
         <div class="card">
             <h2><span class="icon">🌐</span> Cloudflare WARP <span id="warp-status" class="status" style="margin:0;font-size:0.75rem">Checking...</span> <span id="warp-ip" style="font-size:0.7rem;color:var(--text-muted);font-weight:400"></span></h2>
@@ -457,6 +548,15 @@ let extractorProxies = {};
 let sslOff = false;
 let extractorProxyMode = 'proxy';
 
+function formatBytes(bytes, decimals = 2) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 function toast(msg, type='success') {
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -504,6 +604,23 @@ async function loadConfig() {
         document.getElementById('segment-cache-ttl').value = config.segment_cache_ttl || 30;
         document.getElementById('proxy-test-concurrency').value = (config.proxy_test_concurrency != null ? config.proxy_test_concurrency : 30);
         document.getElementById('log-level').value = config.log_level || 'WARNING';
+
+        // Update system resources
+        if (config.system_stats) {
+            const stats = config.system_stats;
+            
+            document.getElementById('cpu-percent').textContent = stats.cpu.percent + '%';
+            document.getElementById('cpu-bar').style.width = stats.cpu.percent + '%';
+            
+            document.getElementById('ram-percent').textContent = stats.ram.percent + '%';
+            document.getElementById('ram-bar').style.width = stats.ram.percent + '%';
+            document.getElementById('ram-details').textContent = `${formatBytes(stats.ram.used)} / ${formatBytes(stats.ram.total)}`;
+            
+            document.getElementById('disk-percent').textContent = stats.disk.percent + '%';
+            document.getElementById('disk-bar').style.width = stats.disk.percent + '%';
+            document.getElementById('disk-details').textContent = `${formatBytes(stats.disk.used)} / ${formatBytes(stats.disk.total)} (Free: ${formatBytes(stats.disk.free)})`;
+        }
+
     } catch(e) {
         toast('Error loading config: ' + e.message, 'error');
     }
@@ -915,6 +1032,34 @@ async function removeExcludeDomain(domain) {
 }
 
 loadConfig();
+
+// Poll system resources every 5 seconds
+setInterval(async () => {
+    const params = new URLSearchParams(window.location.search);
+    const pw = params.get('api_password');
+    const url = '/api/admin/config' + (pw ? '?api_password=' + pw : '');
+    try {
+        const resp = await fetch(url);
+        if (resp.ok) {
+            const tempConfig = await resp.json();
+            if (tempConfig.system_stats) {
+                const stats = tempConfig.system_stats;
+                document.getElementById('cpu-percent').textContent = stats.cpu.percent + '%';
+                document.getElementById('cpu-bar').style.width = stats.cpu.percent + '%';
+                
+                document.getElementById('ram-percent').textContent = stats.ram.percent + '%';
+                document.getElementById('ram-bar').style.width = stats.ram.percent + '%';
+                document.getElementById('ram-details').textContent = `${formatBytes(stats.ram.used)} / ${formatBytes(stats.ram.total)}`;
+                
+                document.getElementById('disk-percent').textContent = stats.disk.percent + '%';
+                document.getElementById('disk-bar').style.width = stats.disk.percent + '%';
+                document.getElementById('disk-details').textContent = `${formatBytes(stats.disk.used)} / ${formatBytes(stats.disk.total)} (Free: ${formatBytes(stats.disk.free)})`;
+            }
+        }
+    } catch (e) {
+        // Silently ignore
+    }
+}, 5000);
 </script>
 </body>
 </html>

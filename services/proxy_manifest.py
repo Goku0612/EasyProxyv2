@@ -652,11 +652,15 @@ class HLSProxyManifestHandlerMixin:
                 x in error_msg
                 for x in ["403", "forbidden", "502", "bad gateway", "timeout", "connection", "temporarily unavailable"]
             )
+            is_corrupt = "corrupt" in error_msg or "not available" in error_msg
             extractor_name = extractor_name_for_log(extractor)
 
             if is_expired_embed:
                 logger.info("Expired VixSrc embed URL rejected: %s", str(e))
                 return web.Response(text=str(e), status=410)
+            if is_corrupt:
+                logger.warning(f"⚠️ {extractor_name}: Content is corrupt or not available - {str(e)}")
+                return web.Response(text=f"Content corrupt or not available: {str(e)}", status=404)
             if is_not_found:
                 logger.warning(f"🔍 {extractor_name}: Content not found (404) - {str(e)}")
                 return web.Response(text=f"Content not found: {str(e)}", status=404)

@@ -9,7 +9,7 @@ from services.proxy_shared import (
 )
 from extractors.registry import *
 import config_store
-from config import reload_config, clear_proxy_affinity
+from config import reload_config, clear_proxy_affinity, get_system_stats
 
 class HLSProxyPagesMixin:
 
@@ -666,6 +666,7 @@ class HLSProxyPagesMixin:
         config["warp_status"] = await self.get_warp_status()
         config["warp_ip"] = getattr(self, '_warp_ip', '')
         config["available_extractors"] = self._get_available_extractors()
+        config["system_stats"] = get_system_stats()
         return web.json_response(config)
 
     def _get_available_extractors(self):

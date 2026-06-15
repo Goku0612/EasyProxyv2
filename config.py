@@ -1,4 +1,5 @@
 import os
+import shutil
 import logging
 import random
 import socket
@@ -674,7 +675,7 @@ API_PASSWORD = os.environ.get("API_PASSWORD")
 PORT = int(os.environ.get("PORT", 7860))
 
 # --- Version/Mode Configuration ---
-APP_VERSION = "2.9.09"
+APP_VERSION = "2.9.10"
 
 _has_solvers = os.path.exists("flaresolverr")
 VERSION_MODE = "Full" if _has_solvers else "Light"
@@ -760,3 +761,104 @@ def __getattr__(name):
     if getter:
         return getter()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def get_system_stats():
+    # Disk Usage
+    rec_dir = _cfg_get("recordings_dir", "/data/recordings")
+    try:
+        os.makedirs(rec_dir, exist_ok=True)
+        disk_total, disk_used, disk_free = shutil.disk_usage(rec_dir)
+        disk_percent = (disk_used / disk_total) * 100 if disk_total > 0 else 0
+    except Exception as e:
+        logger.warning(f"Error getting disk usage: {e}")
+        disk_total, disk_used, disk_free, disk_percent = 0, 0, 0, 0
+
+    # CPU & RAM Usage (using psutil with fallback)
+    cpu_percent = 0.0
+    ram_percent = 0.0
+    ram_total = 0
+    ram_used = 0
+    ram_free = 0
+    
+    # Check if we are running inside Docker and have cgroup memory limits
+    docker_used, docker_limit = None, None
+    try:
+        # cgroup v2 (Unified Hierarchy)
+        if os.path.exists("/sys/fs/cgroup/memory.max") and os.path.exists("/sys/fs/cgroup/memory.current"):
+            with open("/sys/fs/cgroup/memory.max", "r") as f:
+                val = f.read().strip()
+                if val != "max":
+                    docker_limit = int(val)
+            with open("/sys/fs/cgroup/memory.current", "r") as f:
+                docker_used = int(f.read().strip())
+        # cgroup v1 (Legacy Hierarchy)
+        elif os.path.exists("/sys/fs/cgroup/memory/memory.limit_in_bytes") and os.path.exists("/sys/fs/cgroup/memory/memory.usage_in_bytes"):
+            with open("/sys/fs/cgroup/memory/memory.limit_in_bytes", "r") as f:
+                docker_limit = int(f.read().strip())
+            with open("/sys/fs/cgroup/memory/memory.usage_in_bytes", "r") as f:
+                docker_used = int(f.read().strip())
+        
+        # Verify container limits are not infinite/max value (like 9223372036854771712 or 9223372036854775807)
+        if docker_limit and docker_limit > 9000000000000000000:
+            docker_limit = None
+    except Exception:
+        pass
+
+    try:
+        import psutil
+        cpu_percent = psutil.cpu_percent()
+        mem = psutil.virtual_memory()
+        ram_total = mem.total
+        ram_used = mem.used
+        ram_free = mem.available
+        ram_percent = mem.percent
+    except Exception as e:
+        logger.debug(f"psutil not available or error: {e}")
+        try:
+            if os.path.exists("/proc/meminfo"):
+                meminfo = {}
+                with open("/proc/meminfo", "r") as f:
+                    for line in f:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            meminfo[parts[0].replace(":", "")] = int(parts[1]) * 1024
+                ram_total = meminfo.get("MemTotal", 0)
+                ram_free = meminfo.get("MemAvailable", meminfo.get("MemFree", 0))
+                ram_used = ram_total - ram_free
+                ram_percent = (ram_used / ram_total) * 100 if ram_total > 0 else 0
+            
+            if os.path.exists("/proc/loadavg"):
+                with open("/proc/loadavg", "r") as f:
+                    load = f.readline().split()
+                    cpu_percent = float(load[0]) * 100 / (os.cpu_count() or 1)
+                    if cpu_percent > 100.0:
+                        cpu_percent = 100.0
+        except Exception:
+            pass
+
+    # Apply Docker container cgroup limits if valid
+    if docker_used is not None and docker_limit is not None:
+        ram_total = docker_limit
+        ram_used = docker_used
+        ram_free = max(0, docker_limit - docker_used)
+        ram_percent = (ram_used / ram_total) * 100 if ram_total > 0 else 0
+
+    return {
+        "disk": {
+            "total": disk_total,
+            "used": disk_used,
+            "free": disk_free,
+            "percent": round(disk_percent, 1)
+        },
+        "cpu": {
+            "percent": round(cpu_percent, 1)
+        },
+        "ram": {
+            "total": ram_total,
+            "used": ram_used,
+            "free": ram_free,
+            "percent": round(ram_percent, 1)
+        }
+    }
+

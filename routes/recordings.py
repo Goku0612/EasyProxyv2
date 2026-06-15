@@ -3,7 +3,9 @@ import logging
 import os
 from aiohttp import web
 import functools
+import shutil
 
+import config
 from config import check_password, APP_VERSION
 import config_store
 
@@ -53,10 +55,12 @@ def setup_recording_routes(app, recording_manager):
 
         status = request.query.get('status')
         recordings = recording_manager.get_all_recordings(status=status)
+        system_stats = config.get_system_stats()
 
         return web.json_response({
             "recordings": recordings,
-            "active_count": len([r for r in recordings if r.get('is_active')])
+            "active_count": len([r for r in recordings if r.get('is_active')]),
+            "system_stats": system_stats
         })
 
     async def handle_get_recording(request):
