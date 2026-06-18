@@ -30,6 +30,8 @@ DEFAULT_CONFIG = {
     "transport_routes": [],
     "extractor_proxies": {},
     "warp_off_extractors": [],
+    "proxy_off_extractors": [],
+    "proxy_exclude_domains": [],
     "mpd_mode": "legacy",
     "recordings_dir": "app/data/recordings", 
     "max_recording_duration": 28800,
@@ -39,7 +41,6 @@ DEFAULT_CONFIG = {
     "enable_remuxing": True,
     "proxy_test_timeout": 10,
     "proxy_test_concurrency": None,
-    "segment_cache_ttl": 30,
     "log_level": "WARNING",
 }
 
