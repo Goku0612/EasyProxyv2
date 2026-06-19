@@ -1,111 +1,60 @@
-# Monolithic Dockerfile for EasyProxy
-# Optimized: Uses FlareSolverr v3 (Python)
-# Compatible with AMD64 and ARM64 (Oracle VPS)
+# Usa l'immagine originale standard
+FROM ghcr.io/realbestia1/easyproxy:latest
 
-FROM python:3.12-slim-bookworm
+# Variabili personali adattate per la porta standard di Render
+ENV USER_FORK=Goku0612
+ENV PORT=10000
+ENV USE_WARP=true
 
-# 1. Environment Settings
+# Passiamo a root per installare le utility di controllo rete
+USER root
+
+# Installiamo iproute2 per verificare lo stato della porta di WARP
+RUN apt-get update && apt-get install -y iproute2 --no-install-recommends && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
-ENV PYTHONUNBUFFERED=1
-ENV FLARESOLVERR_URL=http://localhost:8191
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    git \
-    gnupg \
-    gpg \
-    tar \
-    && curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ bookworm main" | tee /etc/apt/sources.list.d/cloudflare-client.list \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    cloudflare-warp \
-    netcat-openbsd \
-    ffmpeg \
-    chromium \
-    xvfb \
-    python3-tk \
-    python3-dev \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libatspi2.0-0 \
-    libxshmfence1 \
-    libglu1-mesa \
-    ca-certificates \
-    fonts-liberation \
-    chromium-driver \
-    && rm -rf /var/lib/apt/lists/*
+# Creiamo l'entrypoint personalizzato in inglese per evitare i blocchi di sintassi
+RUN cat << 'EOF' > /app/warp_entrypoint.sh
+#!/bin/bash
 
-# Optional userspace WARP tools. They allow WARP as a local SOCKS5 proxy
-# without NET_ADMIN or /dev/net/tun when WARP_MODE=wireproxy is selected.
-ARG WGCF_VERSION=2.2.29
-ARG WIREPROXY_VERSION=1.0.9
-RUN set -eux; \
-    arch="$(dpkg --print-architecture)"; \
-    case "$arch" in \
-        amd64) wgcf_arch="amd64"; wireproxy_arch="amd64" ;; \
-        arm64) wgcf_arch="arm64"; wireproxy_arch="arm64" ;; \
-        armhf) wgcf_arch="armv7"; wireproxy_arch="arm" ;; \
-        *) echo "Unsupported architecture for wgcf/wireproxy: $arch" >&2; exit 1 ;; \
-    esac; \
-    curl -fL "https://github.com/ViRb3/wgcf/releases/download/v${WGCF_VERSION}/wgcf_${WGCF_VERSION}_linux_${wgcf_arch}" -o /usr/local/bin/wgcf; \
-    chmod +x /usr/local/bin/wgcf; \
-    curl -fL "https://github.com/pufferffish/wireproxy/releases/download/v${WIREPROXY_VERSION}/wireproxy_linux_${wireproxy_arch}.tar.gz" -o /tmp/wireproxy.tar.gz; \
-    tar -xzf /tmp/wireproxy.tar.gz -C /tmp; \
-    find /tmp -type f -name wireproxy -exec mv {} /usr/local/bin/wireproxy \; ; \
-    chmod +x /usr/local/bin/wireproxy; \
-    rm -f /tmp/wireproxy.tar.gz
+# Configura il file .env locale per forzare l'uso di WARP
+if [ -f /app/.env ]; then
+    sed -i 's/USE_WARP=.*/USE_WARP=true/g' /app/.env
+    sed -i 's/PROXY_URL=.*/PROXY_URL=socks5:\/\/127.0.0.1:1080/g' /app/.env
+    echo "Configurazione .env impostata su WARP (Porta 1080)."
+fi
 
-# Install Ookla Speedtest CLI for the admin panel speedtest
-ARG SPEEDTEST_VERSION=1.2.0
-RUN set -eux; \
-    arch="$(dpkg --print-architecture)"; \
-    case "$arch" in \
-        amd64) speedtest_arch="x86_64" ;; \
-        arm64) speedtest_arch="aarch64" ;; \
-        *) echo "Unsupported architecture for speedtest: $arch" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL "https://install.speedtest.net/app/cli/ookla-speedtest-${SPEEDTEST_VERSION}-linux-${speedtest_arch}.tgz" -o /tmp/speedtest.tgz; \
-    tar -xzf /tmp/speedtest.tgz -C /usr/local/bin speedtest; \
-    chmod +x /usr/local/bin/speedtest; \
-    rm -f /tmp/speedtest.tgz
+# Avviamo l'entrypoint originale in background
+echo "=== Avvio dei servizi di EasyProxy e Cloudflare WARP ==="
+if [ -f /app/entrypoint.sh ]; then
+    bash /app/entrypoint.sh &
+elif [ -f /entrypoint.sh ]; then
+    bash /entrypoint.sh &
+else
+    echo "ERRORE: Impossibile trovare l'entrypoint originale!"
+    exit 1
+fi
 
-# 2. Environment Settings
-ENV PYTHONPATH=/app
-ENV CHROME_EXE_PATH=/usr/bin/chromium
-ENV CHROME_BIN=/usr/bin/chromium
-ENV CHROME_DRIVER_PATH=/usr/bin/chromedriver
+# Attendiamo che il proxy SOCKS5 di WARP sia online sulla porta 1080
+echo "In attesa che Cloudflare WARP apra la porta 1080..."
+for i in {1..30}; do
+    if ss -lntu | grep -q :1080; then
+        echo "WARP è attivo e connesso sulla porta 1080!"
+        break
+    fi
+    sleep 1
+done
 
+# Manteniamo il container attivo monitorando i processi in background
+wait
+EOF
 
-# 4. EasyProxy Dependencies
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Permessi di esecuzione dello script
+RUN chmod +x /app/warp_entrypoint.sh
 
-# Copia esplicita
-COPY . .
+# Esponiamo la porta corretta per Render
+EXPOSE 10000
 
-# Crea la cartella dati dentro /app e crea un collegamento simbolico a /data per bypassare i blocchi di Render
-RUN mkdir -p /app/data && ln -s /app/data /data
-
-RUN chmod +x entrypoint.sh
-
-# 5. Metadata & Ports
-LABEL org.opencontainers.image.title="EasyProxy Monolith"
-LABEL org.opencontainers.image.description="All-in-one HLS Proxy with integrated CF Turnstile Solver"
-EXPOSE 7860 8191
-VOLUME ["/data"]
-
-# 6. Execution
-ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
+# Avvia l'entrypoint ottimizzato per WARP
+CMD ["/bin/bash", "/app/warp_entrypoint.sh"]
